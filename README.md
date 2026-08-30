@@ -22,16 +22,17 @@
 11. [Key Equations Reference](#key-equations-reference)
 12. [CLI Commands — Full Reference](#cli-commands--full-reference)
 13. [Output Reports — Detailed Guide](#output-reports--detailed-guide)
-14. [Sensitivity & Monte Carlo Analysis](#sitivity--monte-carlo-analysis)
-15. [Optimizer & Pareto Frontier](#optimizer--pareto-frontier)
-16. [Honesty Layer — The Reality Check](#honesty-layer--the-reality-check)
-17. [Materials & Engineering Constraints](#materials--engineering-constraints)
-18. [Comparison to Real-World Systems](#comparison-to-real-world-systems)
-19. [File Structure](#file-structure)
-20. [Dependencies & Installation](#dependencies--installation)
-21. [Glossary](#glossary)
-22. [FAQ](#faq)
-23. [License & Disclaimer](#license--disclaimer)
+14. [Interactive Visualization GUI](#interactive-visualization-gui---visual)
+15. [Sensitivity & Monte Carlo Analysis](#sitivity--monte-carlo-analysis)
+16. [Optimizer & Pareto Frontier](#optimizer--pareto-frontier)
+17. [Honesty Layer — The Reality Check](#honesty-layer--the-reality-check)
+18. [Materials & Engineering Constraints](#materials--engineering-constraints)
+19. [Comparison to Real-World Systems](#comparison-to-real-world-systems)
+20. [File Structure](#file-structure)
+21. [Dependencies & Installation](#dependencies--installation)
+22. [Glossary](#glossary)
+23. [FAQ](#faq)
+24. [License & Disclaimer](#license--disclaimer)
 
 ---
 
@@ -43,11 +44,12 @@ underground cold compressed-air cavern that discharges through a mile-long tunne
 running over a lava/geothermal heat source, driving multi-stage turbines and exit
 fans to generate electricity.
 
-The model is written in pure Python 3.8+ with **zero external dependencies** —
-only the standard library (`math`, `sys`, `argparse`, `dataclasses`, `typing`).
-Every number is in SI units. Every extraordinary claim is checked against textbook
-formulas and a conservation + Carnot audit. The model refuses to report over-unity
-output.
+The model is written in pure Python 3.8+ with **zero external dependencies** for
+the physics core (`math`, `sys`, `argparse`, `dataclasses`, `typing`). The
+interactive visualization GUI optionally uses `tkinter` and `matplotlib`, both
+of which are included with most Python installations. Every number is in SI
+units. Every extraordinary claim is checked against textbook formulas and a
+conservation + Carnot audit. The model refuses to report over-unity output.
 
 ### Scale of the Final Design
 
@@ -85,6 +87,12 @@ systems side by side — producing:
 5. **Complete toolchain**: Self-test, design sweep, sensitivity analysis, Monte
    Carlo, optimizer, Pareto frontier, flow diagrams, hardware spec, BOM, and
    live dashboard — all in one file.
+
+6. **Interactive 3D visualization**: A tabbed tkinter + matplotlib GUI with 11
+   tabs including a to-scale 3D system view, a 21-panel engineering blueprint,
+   animated turbine cross-section, operations timeline, energy flow diagrams,
+   P&ID, electrical single-line diagram, and T-s thermodynamic diagrams. The
+   BOM contains 206 individually specified assemblies.
 
 ---
 
@@ -135,6 +143,9 @@ python CryoLavaTunnel.py --parts
 
 # 15. See the timeline plot
 python CryoLavaTunnel.py --target MaxPower8-Dual --timeline
+
+# 16. Launch the interactive 3D visualization GUI
+python CryoLavaTunnel.py --visual
 ```
 
 ---
@@ -166,6 +177,30 @@ air at **300 bar** and **-150 °C**. At these conditions, air density is
 The cavern is cooled using **lava-powered absorption refrigeration** — waste heat
 from the lava source drives LiBr/H₂O absorption chillers (COP 0.3), reducing the
 electrical cooling cost by 85%. Only 15% of the cooling needs electricity.
+
+### CRITICAL: Ultra Thermal Insulation Near Lava
+
+The system is designed around a volcano/lava environment. The cold cavern **cannot**
+sit underground near the lava body and stay cold by itself — the surrounding rock
+is **500-800 °C** due to the lava thermal halo. The model accounts for this with:
+
+- **`lava_proximity_m`**: Distance from cavern to lava body (200 m in the default design)
+- **Thermal halo model**: Ground temperature is elevated near the lava body. At 200 m
+  from 3000 °C lava, the surrounding rock is ~671 °C — far too hot for passive cooling
+- **Ultra thermal insulation**: 500 mm multi-layer insulation system:
+  - Aerogel blanket (k = 0.014 W/m·K, 50 mm)
+  - Vacuum insulated panels (k = 0.004 W/m·K, 100 mm)
+  - Multi-layer insulation (30 layers, k = 0.00005 W/m·K)
+  - Reflective foil barriers between layers
+  - Combined R-value: **30 m²·K/W** (vs ~8 for PU foam alone)
+- **Effective U_ground**: Drops from 0.3 to **0.008 W/(m²·K)** with ultra insulation
+
+Without ultra insulation, the heat leak through bare rock would be **~246 MW** —
+catastrophic for the EROI. With ultra insulation (R=30), the leak drops to **~6.4 MW**,
+which the active cascade refrigeration system can handle.
+
+**If the cavern cannot be thermally separated from the lava during construction,
+it MUST be ultra-insulated or the system will not work.**
 
 ### The Lava Heat Source
 
@@ -957,6 +992,7 @@ python CryoLavaTunnel.py --model                   # ASCII cross-section visuali
 python CryoLavaTunnel.py --flow                    # Energy flow Sankey diagram
 python CryoLavaTunnel.py --timeline                # Multi-series timeline plot
 python CryoLavaTunnel.py --turbines                # Per-stage turbine breakdown
+python CryoLavaTunnel.py --visual                  # Interactive 3D GUI (tkinter + matplotlib)
 ```
 
 ### Hardware
@@ -1055,7 +1091,22 @@ To-scale hardware spec in SI units for every component:
 
 ### Bill of Materials (`--parts`)
 
-Complete parts list with quantities and key specs for every component.
+Complete parts list with 206 individually specified assemblies, each with
+quantities, dimensions, materials, and functions. Covers:
+
+- Cavern lining, insulation, waterproofing, rock bolts, sensors, drainage
+- Tunnel casing, refractory, expansion joints, lining rings, drainage
+- Turbine rotors, stator vanes, casings, diaphragms, shafts, bearings, seals
+- Generator stators, rotors, windings, exciters, AVRs, bushings, busducts
+- Heat exchanger tubes, tube sheets, headers, heat pipes (evaporator/condenser)
+- Bottoming cycle components (potassium, sCO2, steam, ORC)
+- Switchyard (SF6 breakers, disconnectors, CTs, VTs, arresters, busbars)
+- Transformers (main, OLTC, bushings, conservator, radiators)
+- Cable systems (MV, control, fiber optic, station service, cable trays)
+- Cooling tower (fill, drift eliminators, fans, water distribution, basin)
+- Control system (SCADA, PLCs, RTUs, I/O, historian, network)
+- HVAC, fire protection, drainage, crane, lighting, meteorological station
+- Construction equipment (TBM, roadheader, shotcrete robot, rock bolter)
 
 ### Timeline Plot (`--timeline`)
 
@@ -1066,6 +1117,54 @@ over the simulation duration.
 
 Schematic cross-section of the full system showing cavern, tunnel, lava
 contact, turbines, and exit.
+
+---
+
+## Interactive Visualization GUI (`--visual`)
+
+The `--visual` command launches a tabbed tkinter + matplotlib GUI with 11 tabs
+and 23 draw functions. It provides a real-time, interactive engineering
+visualization of the entire system.
+
+### GUI Tabs
+
+| Tab | Description |
+|-----|-------------|
+| **3D View** | To-scale 3D isometric view of all components: cavern, tunnel bores, lava body, HX tubes, heat pipes, turbine stages, reheaters, MHD, regenerator, stack, exit nozzle, exit fans, bottoming cycles, transformer, switchyard, buildings, crane, stairs, pipe rack, tanks, fence, HVAC, lighting, and more. Three detail levels (Fast/Standard/Full). |
+| **Blueprint** | 21-panel engineering blueprint schematic: isometric cutaway, plan view, side elevation, end elevation, cavern lining detail, turbine stage detail, lava HX detail, fan/nozzle detail, generator detail, P&ID, exploded assembly, electrical SLD, reheat detail, site layout, cavern interior, T-s diagrams, heat pipe detail, cooling tower detail, control architecture, title block, and legend. |
+| **Turbine Engine** | Animated multi-stage axial turbine cross-section with spinning rotor blades, stator vanes, shaft, casing, and generator. 28 stages with 18 blades each, batched into 2 render calls for smooth animation. |
+| **Operations** | Energy output over time: net power, turbine power, fan power, bottoming power, and parasitic loads. |
+| **Cross-Section** | 2D schematic with pan/zoom: cavern, tunnel, lava zone, turbines, stack, and exit. |
+| **Timeline** | Multi-series plot: power, cavern temperature, cavern pressure, and exit velocity over the discharge cycle. |
+| **Energy Flow** | Bar chart showing energy allocation: lava heat in, turbine work, fan work, bottoming work, waste heat, and net output. |
+| **Turbine Stages** | Per-stage temperature and work output for all 28 stages. |
+| **Pressure Profile** | Per-stage pressure drop across the turbine array. |
+| **Cavern State** | Cavern mass and pressure evolution over the discharge cycle. |
+| **Summary** | Key metrics: mean power, peak power, EROI, Carnot efficiency, conservation residual, and CAPEX. |
+
+### GUI Controls
+
+- **Target selector**: Switch between all 21 preset configurations
+- **Recompute button**: Re-run the simulation with current settings
+- **Animate Turbine**: Toggle spinning turbine blade animation
+- **Detail level**: Fast (core components only), Standard (all major), Full (all 50+ components)
+- **Matplotlib toolbar**: Pan, zoom, and save on every tab
+
+### Performance Optimizations
+
+The GUI uses several techniques to stay responsive:
+
+- **Lazy tab drawing**: Only the visible tab is drawn; other tabs are drawn
+  on first visit and cached. Initial load draws 1 tab instead of 11.
+- **Batched rendering**: Turbine animation uses 2 batched `plot()` calls
+  instead of 672 individual calls per frame (3.7x faster).
+- **Cached blueprint axes**: 20 sub-axes are created once and reused on
+  redraws instead of being recreated each time.
+- **Animation gating**: Turbine animation only renders when the turbine
+  tab is visible (zero overhead on other tabs).
+- **Reduced simulation steps**: 300 steps instead of 800 (2.7x faster).
+- **Detail levels**: 3D view can skip secondary components for faster
+  rendering on slower machines.
 
 ---
 
@@ -1180,6 +1279,15 @@ Going deep does NOT make the ground colder. Below ~1.5-4 m, the ground warms
 at ~30 °C/km. A deep cavern next to lava is HOT, not cold. Real cold comes
 from shallow earth coupling, active refrigeration, or cold-climate charging.
 
+### 5. Models the Lava Thermal Halo
+
+The cavern sits in a volcano/lava environment. The surrounding rock temperature
+is elevated far above the standard geothermal gradient because the lava body
+creates a thermal halo. At 200 m from 3000 °C lava, the rock is ~671 °C.
+The model requires **ultra thermal insulation** (aerogel + vacuum panels + MLI,
+R=30 m²·K/W) to keep the cavern cold. Without it, the heat leak would be
+catastrophic (~246 MW through bare rock vs ~6.4 MW with ultra insulation).
+
 ### 5. Distinguishes Power Types
 
 Reports separate values for:
@@ -1211,8 +1319,16 @@ conditions. The key engineering challenges that would prevent construction:
 - 600 mm shotcrete structural shell
 - 8 mm HDPE waterproof membrane
 - 200 mm polyurethane foam insulation
+- **500 mm ultra thermal insulation** (when near lava):
+  - Aerogel blanket (50 mm, k = 0.014 W/m·K)
+  - Vacuum insulated panels (100 mm, k = 0.004 W/m·K)
+  - Multi-layer insulation (30 layers, k = 0.00005 W/m·K)
+  - Reflective foil barriers
+  - Combined R-value: 30 m²·K/W
 - Pressure rating: 8 bar (baseline) to 300+ bar (MaxPower8)
 - Access tunnel: 6 m diameter × 420 m
+- **Lava proximity**: 200 m from 3000 °C lava body
+- **Rock temperature at cavern**: ~671 °C (thermal halo)
 
 ### Tunnel Lining
 - 350 mm precast concrete segments
@@ -1273,10 +1389,11 @@ conditions. The key engineering challenges that would prevent construction:
 
 ```
 Energy Harvester/
-├── CryoLavaTunnel.py          # Main model (3700+ lines, single file)
+├── CryoLavaTunnel.py          # Main model (9000+ lines, single file)
 ├── informational.md           # Original concept description
 ├── README.md                  # This file
 ├── ABOUT.md                   # Detailed technical background
+├── CONSTRUCTION_GUIDE.md      # Complete construction instructions (14 phases, 207 BOM items)
 └── ReferenceCode/             # Reference programs used as patterns
     ├── ValcanoHarvester.py    # Volcano heat harvester pattern
     ├── Radiant.py             # Radiant energy harvester pattern
@@ -1311,11 +1428,16 @@ Energy Harvester/
 | 11 | Honesty layer / reality check |
 | 12 | Hardware specification (to scale, SI) |
 | 12b | Detailed hardware specification dicts |
-| 12c | BOM / parts list |
+| 12c | BOM / parts list (206 assemblies) |
 | 13 | Info / CLI |
 | 13b | ASCII cross-section visualization |
 | 13c | Energy flow diagram (Sankey-style ASCII) |
 | 13d | Timeline plot (multi-series) |
+| 13e | Interactive 3D visualization GUI (tkinter + matplotlib) |
+| 13f | 3D system view (50+ components, detail levels) |
+| 13g | Engineering blueprint (21 panels, cached axes) |
+| 13h | Animated turbine engine (batched rendering) |
+| 13i | Delegated detail panels (heat pipe, cooling tower, control, etc.) |
 | 14 | CLI entry point |
 
 ---
@@ -1325,15 +1447,25 @@ Energy Harvester/
 ### Requirements
 
 - **Python 3.8+**
-- **Standard library only** — no pip installs required
-- Uses: `math`, `sys`, `argparse`, `dataclasses`, `typing`
+- **Standard library only** for physics core — no pip installs required
+- Core uses: `math`, `sys`, `argparse`, `dataclasses`, `typing`
+- **Optional** for interactive GUI: `tkinter` (included with Python on Windows/macOS,
+  `python3-tk` on Linux) and `matplotlib` (`pip install matplotlib`)
 
 ### Installation
 
-No installation required. Just download `CryoLavaTunnel.py` and run it:
+No installation required for the physics model. Just download
+`CryoLavaTunnel.py` and run it:
 
 ```bash
 python CryoLavaTunnel.py --selftest
+```
+
+For the interactive 3D visualization GUI:
+
+```bash
+pip install matplotlib
+python CryoLavaTunnel.py --visual
 ```
 
 ---
@@ -1405,6 +1537,31 @@ just discharged at different rates.
 A: The model assumes Inconel 718 turbine blades (rated ~700 °C) operating at
 3000 °C with ceramic coatings that do not exist. This is one of the key
 engineering challenges that would prevent construction.
+
+**Q: How do I launch the interactive visualization?**
+A: Run `python CryoLavaTunnel.py --visual`. This opens a tabbed GUI with 3D
+views, engineering blueprints, animated turbine cross-sections, and
+thermodynamic diagrams. Requires `matplotlib` (`pip install matplotlib`).
+
+**Q: The GUI is laggy. What can I do?**
+A: Use the "Detail" dropdown to select "Fast" (core components only) or
+"Standard" (all major components). The "Full" setting draws all 50+ 3D
+components including secondary infrastructure. The turbine animation only
+runs when the Turbine Engine tab is visible.
+
+**Q: How many parts are in the BOM?**
+A: 206 individually specified assemblies, from turbine rotor blades to
+switchyard SF6 breakers to cooling tower fill media. Run
+`python CryoLavaTunnel.py --parts` to see the full list.
+
+**Q: Why does the cold cavern need ultra thermal insulation?**
+A: The system is designed around a volcano/lava environment. The cold cavern
+at -150 °C is only 200 m from the 3000 °C lava body. The surrounding rock is
+~671 °C due to the lava thermal halo. Without ultra insulation (aerogel +
+vacuum panels + MLI, R=30 m²·K/W), the heat leak would be ~246 MW — far too
+much for the chillers to handle. With ultra insulation, the leak drops to
+~6.4 MW. This is a critical engineering requirement: if the cavern cannot be
+thermally separated from the lava during construction, it MUST be ultra-insulated.
 
 ---
 

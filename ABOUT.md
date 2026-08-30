@@ -25,8 +25,10 @@
 21. [Materials and Engineering](#materials-and-engineering)
 22. [Comparison to Real-World Systems](#comparison-to-real-world-systems)
 23. [Physics Corrections — The Full Story](#physics-corrections--the-full-story)
-24. [Reference Code](#reference-code)
-25. [Authorship](#authorship)
+24. [The Interactive Visualization System](#the-interactive-visualization-system)
+25. [The Bill of Materials](#the-bill-of-materials)
+26. [Reference Code](#reference-code)
+27. [Authorship](#authorship)
 
 ---
 
@@ -62,6 +64,19 @@ iterations:
 5. **Dual tunnel build**: The final version models two complete systems side by
    side, producing 110 TW mean power — the absolute physical limit of this
    architecture within Carnot.
+
+6. **Interactive visualization**: A tabbed tkinter + matplotlib GUI with 11
+   tabs, 23 draw functions, a 21-panel engineering blueprint, an animated
+   turbine cross-section, and a 3D isometric system view with 50+ components.
+   The BOM expanded to 206 individually specified assemblies.
+
+7. **Lava thermal halo and ultra insulation**: The model was corrected to
+   account for the fact that the cold cavern sits in a volcano/lava
+   environment where the surrounding rock is 500-800 °C due to the lava
+   thermal halo. Ultra thermal insulation (aerogel + vacuum panels + MLI,
+   500 mm, R=30 m²·K/W) was added as a critical engineering requirement.
+   Without it, the heat leak through bare rock would be ~246 MW — far
+   exceeding the chiller capacity and destroying the cold reservoir.
 
 ---
 
@@ -690,6 +705,51 @@ This means:
 - Real cryogenic temperatures (-150 °C) require **active refrigeration**,
   which costs energy and is accounted for in the EROI.
 
+### The Lava Thermal Halo
+
+The system is designed around a volcano/lava environment. The standard
+geothermal gradient (~30 °C/km) is NOT sufficient to describe the ground
+temperature near a lava body. The lava creates a **thermal halo** that
+elevates the surrounding rock temperature dramatically:
+
+| Distance from lava | Rock temperature | Implication |
+|--------------------|-----------------|-------------|
+| 50 m | ~1342 °C | Cavern impossible without extreme insulation |
+| 100 m | ~949 °C | Ultra insulation + active refrigeration required |
+| 200 m | ~671 °C | Ultra insulation + active refrigeration required |
+| 500 m | ~424 °C | Ultra insulation + active refrigeration required |
+| 1000 m | ~300 °C | Heavy insulation + active refrigeration |
+| 2000 m | ~212 °C | Standard insulation + active refrigeration |
+
+The model uses a `lava_proximity_m` field in `ColdCavernSpec` to compute the
+thermal halo. The halo decays roughly as 1/sqrt(r) from the lava body.
+
+### Ultra Thermal Insulation
+
+When the cavern is near a lava body, standard PU foam insulation
+(k = 0.024 W/m·K, 200 mm, R = 8 m²·K/W) is grossly insufficient. The model
+includes an **ultra thermal insulation** system:
+
+- **Aerogel blanket**: 50 mm, k = 0.014 W/(m·K)
+- **Vacuum insulated panels (VIP)**: 100 mm, k = 0.004 W/(m·K)
+- **Multi-layer insulation (MLI)**: 30 layers, k = 0.00005 W/(m·K)
+- **Reflective foil barriers** between layers
+- **Total thickness**: 500 mm
+- **Combined R-value**: 30 m²·K/W
+- **Effective U_ground**: drops from 0.3 to 0.008 W/(m²·K)
+
+The heat leak comparison at 200 m from 3000 °C lava (rock T = 671 °C):
+
+| Insulation | U_ground (W/m²·K) | Heat leak (MW) | Chiller load |
+|------------|-------------------|----------------|--------------|
+| Bare rock | 0.3 | 246 | Catastrophic |
+| PU foam only | 0.04 | 33 | Heavy |
+| Ultra insulation | 0.008 | 6.4 | Manageable |
+
+**Without ultra insulation, the heat leak would exceed the chiller capacity
+and the cavern would warm to the rock temperature, destroying the cold
+reservoir and stopping the heat engine.**
+
 The model lets you choose:
 - **PASSIVE mode**: No chiller. The cavern recharges toward the ground
   temperature at its depth. Free but limited to ~12 °C.
@@ -982,8 +1042,17 @@ same cavern, just discharged at different rates.
 - 600 mm shotcrete structural shell
 - 8 mm HDPE waterproof membrane
 - 200 mm polyurethane foam insulation
+- **500 mm ultra thermal insulation** (when near lava):
+  - Aerogel blanket (50 mm, k = 0.014 W/m·K)
+  - Vacuum insulated panels (100 mm, k = 0.004 W/m·K)
+  - Multi-layer insulation (30 layers, k = 0.00005 W/m·K)
+  - Reflective foil barriers
+  - Combined R-value: 30 m²·K/W
 - Pressure rating: 8 bar (baseline) to 300+ bar (MaxPower8)
 - Access tunnel: 6 m diameter × 420 m
+- **Lava proximity**: 200 m from 3000 °C lava body
+- **Rock temperature at cavern**: ~671 °C (thermal halo)
+- **Effective U_ground**: 0.008 W/(m²·K) with ultra insulation
 
 ### Tunnel Lining
 - 350 mm precast concrete segments
@@ -1143,6 +1212,199 @@ bottoming_heat = W_orc/η_orc + W_sco2/η_sco2 + W_steam/η_steam + W_K/η_K
 
 ---
 
+## The Interactive Visualization System
+
+The model includes a full interactive visualization GUI launched with
+`python CryoLavaTunnel.py --visual`. It is built on tkinter and matplotlib,
+providing 11 tabs and 23 draw functions covering every aspect of the system.
+
+### Architecture
+
+The GUI uses a lazy-drawing architecture for responsiveness:
+
+1. **Lazy tab drawing**: Only the currently visible tab is drawn on first
+   visit. Other tabs draw on demand when selected and are cached afterward.
+   This reduces initial load from 11 tabs to 1 tab.
+
+2. **Cached blueprint axes**: The 21-panel engineering blueprint creates 20
+   sub-axes on first draw and caches them on the figure object. Subsequent
+   redraws call `ax.clear()` on the cached axes instead of recreating them,
+   saving ~0.13s per redraw.
+
+3. **Batched turbine rendering**: The animated turbine engine collects all
+   stator vane and rotor blade line segments into arrays and draws them in
+   2 batched `ax.plot()` calls instead of 672 individual calls per frame.
+   This reduces frame render time from 0.46s to 0.125s (3.7x faster).
+
+4. **Animation gating**: The turbine animation timer remains active for
+   angle progression, but rendering is skipped unless the Turbine Engine
+   tab is visible. This eliminates background lag on other tabs.
+
+5. **Detail levels**: The 3D view supports three detail levels:
+   - **Fast (0)**: Core components only (cavern, tunnel, lava, turbines, stack)
+   - **Standard (1)**: All major components, single system when dual
+   - **Full (2)**: All 50+ components including secondary infrastructure
+
+### The 11 Tabs
+
+| Tab | Draw Function | Content |
+|-----|---------------|---------|
+| 3D View | `_draw_3d_view` | To-scale 3D isometric with 50+ components |
+| Blueprint | `_draw_blueprint` | 21-panel engineering schematic |
+| Turbine Engine | `_draw_turbine_engine` | Animated axial turbine cross-section |
+| Operations | `_draw_operations` | Power output over time |
+| Cross-Section | `_draw_cross_section` | 2D schematic with pan/zoom |
+| Timeline | `_draw_timeline` | Multi-series discharge cycle plot |
+| Energy Flow | `_draw_energy_flow` | Energy allocation bar chart |
+| Turbine Stages | `_draw_turbine_stages` | Per-stage T and W |
+| Pressure Profile | `_draw_pressure_profile` | Per-stage pressure drop |
+| Cavern State | `_draw_cavern_state` | Mass and pressure evolution |
+| Summary | `_draw_summary_panel` | Key metrics dashboard |
+
+### The 21-Panel Engineering Blueprint
+
+The blueprint tab is the most detailed visualization, containing 21 panels
+arranged in a 7-row layout on a 16x14 inch figure:
+
+**Row 1**: Isometric cutaway (delegated) | End elevation
+**Row 2**: Plan view (top-down) | Cavern lining detail
+**Row 3**: Side elevation (largest panel) | Generator detail (delegated)
+**Row 4**: Site layout (delegated) | Cavern interior (delegated)
+**Row 5**: Exploded assembly | Electrical SLD | Reheat detail | T-s diagrams
+**Row 6**: Heat pipe detail | Cooling tower detail | Control architecture
+**Row 7**: Turbine stage detail | Lava HX detail | Fan/nozzle detail | P&ID | Title + Legend
+
+Twelve panels are delegated to dedicated draw functions:
+`_draw_isometric_cutaway`, `_draw_site_layout`, `_draw_cavern_interior`,
+`_draw_pid_diagram`, `_draw_generator_detail`, `_draw_exploded_view`,
+`_draw_electrical_sld`, `_draw_reheat_detail`, `_draw_ts_diagrams`,
+`_draw_heat_pipe_detail`, `_draw_cooling_tower_detail`, and
+`_draw_control_architecture`.
+
+### The 3D System View
+
+The 3D tab renders the complete system in isometric projection using
+matplotlib's 3D axes with `Poly3DCollection` for volumetric components:
+
+- **Cavern**: Underground cylinder with lining, insulation, and sensors
+- **Tunnel bores**: Multiple parallel cylinders with casing and refractory
+- **Lava body**: Red-orange volume beneath the tunnel
+- **Heat exchanger**: Tube bundle representation
+- **Heat pipes**: Vertical pipes from lava to tunnel
+- **Turbine stages**: Green cylinders along the tunnel
+- **Reheaters**: Orange markers between turbine stages
+- **MHD section**: Purple cylinder (when enabled)
+- **Regenerator**: Heat recovery section
+- **Stack**: Vertical exit chimney
+- **Exit nozzle and fans**: Blue fan array at the stack top
+- **Bottoming cycles**: K, sCO2, steam, ORC boxes
+- **Transformer and switchyard**: Electrical infrastructure
+- **Control room and buildings**: Surface structures
+- **Crane, stairs, pipe rack, tanks, fence**: Site infrastructure
+- **HVAC, lighting, meteorological station**: Support systems
+
+In Standard detail mode with multiple systems, only the primary system is
+drawn to reduce render time. Full mode draws all systems.
+
+### Performance Profile
+
+After three rounds of optimization, the GUI performance is:
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| Initial load | 0.65s | Draws only the visible 3D tab |
+| Tab switch (cached) | ~0s | Instant from cache |
+| Tab switch (first visit) | 0.13-1.7s | Depends on tab complexity |
+| Turbine animation frame | 0.125s | Batched rendering, 100ms interval |
+| Animation on other tabs | 0s | Rendering skipped |
+| Simulation (300 steps) | 0.032s | Reduced from 800 steps |
+| Blueprint redraw (cached axes) | 1.7s | 21 panels with delegated details |
+| 3D view (Standard) | 0.65s | Single system, 8-segment cylinders |
+
+The blueprint tab is the slowest first-visit tab due to its 21-panel layout
+and 12 delegated detail functions. This is a deliberate trade-off: the
+blueprint is cached after first draw, so subsequent visits are instant, and
+the detail is preserved for engineering reference.
+
+---
+
+## The Bill of Materials
+
+The BOM (`--parts` or via the GUI) contains 206 individually specified
+assemblies, organized into subsystems:
+
+### Cavern (20+ assemblies)
+Shotcrete structural shell, HDPE waterproof membrane, polyurethane foam
+insulation, rock bolts, lining rings, access tunnel lining, cavern door,
+pressure sensors, temperature sensors, seismometers, geophones, drainage
+sumps, condensate collection, dewatering pumps, cavern crane, lighting,
+HVAC ducts, fire suppression, gas sensors, emergency refuge.
+
+### Tunnel (25+ assemblies)
+Precast concrete segments, alumina-silica firebrick refractory, casing
+rings, expansion joints (36 at 50m spacing), tunnel lining, drainage
+pipes, tunnel sensors, escape refuges (6), ventilation ducts, lighting,
+fire protection, communication cable, fiber optic cable.
+
+### Turbines (30+ assemblies)
+Rotor discs, rotor blades (18 per stage, Inconel 718 single-crystal),
+stator vanes, turbine casing, diaphragms, shaft, journal bearings, thrust
+bearing, labyrinth seals, blade tip seals, blade roots, blade shrouds,
+exhaust diffuser, inlet guide vanes, interstage seals, coupling, gearbox.
+
+### Generators (20+ assemblies)
+Stator core, stator windings, rotor, field windings, exciter, AVR,
+bushings, busduct, bearings, hydrogen seals, oil seals, cooling system,
+terminal box, frame, foundation, vibration sensors, temperature sensors,
+current transformers, voltage transformers, surge arresters.
+
+### Heat Exchanger (15+ assemblies)
+HX tubes (200,000 per system, Inconel 617), tube sheets, headers, baffles,
+shell, heat pipes (sodium-charged, 50mm OD), heat pipe evaporator sections,
+heat pipe adiabatic sections, heat pipe condenser sections, fins, support
+brackets, expansion bellows, drain valves, vent valves.
+
+### Bottoming Cycles (25+ assemblies)
+Potassium vapor turbine, potassium condenser, potassium pump, potassium
+evaporator; sCO2 turbine, sCO2 compressor, sCO2 recuperator, sCO2 precooler;
+steam turbine, steam condenser, feedwater pump, steam drum; ORC expander,
+ORC condenser, ORC pump, ORC evaporator; working fluid inventory, seals.
+
+### Switchyard (20+ assemblies)
+SF6 circuit breakers, disconnectors, current transformers, voltage
+transformers, surge arresters, insulators, busbars, cable terminations,
+grounding system, lightning protection, control panels, protection relays.
+
+### Transformers (15+ assemblies)
+Main transformer, OLTC mechanism, bushings (HV and LV), conservator tank,
+Buchholz relay, radiators, cooling fans, tap changer control, temperature
+monitoring, oil level gauge, pressure relief, silica gel breather, wheels,
+foundation, fire wall.
+
+### Cable Systems (10+ assemblies)
+MV power cables, control cables, fiber optic cables, station service
+cables, cable trays, cable ladders, conduit, junction boxes, terminal
+blocks, grounding cables.
+
+### Cooling Tower (15+ assemblies)
+Fill media, drift eliminators, cooling fans, water distribution headers,
+cooling water basin, basin pumps, make-up water system, water treatment,
+structural frame, louvers, fan deck, fan motors, gearboxes, access ladder,
+handrail.
+
+### Control System (15+ assemblies)
+SCADA host, PLCs, RTUs, I/O modules, historian server, engineering
+workstation, operator workstation, network switches, fiber media
+converters, UPS, battery bank, GPS clock, security gateway, operator
+desk, KVM switch.
+
+### Site Infrastructure (15+ assemblies)
+TBM (tunnel boring machine), roadheader, shotcrete robot, rock bolter,
+crane, ventilation fan, drainage pump, lighting, fence, gate, road,
+parking, meteorological station, security cameras, fire alarm.
+
+---
+
 ## Reference Code
 
 The model was built using patterns from the reference programs in the
@@ -1158,19 +1420,24 @@ The CryoLavaTunnel adopts the same spirit: every number in SI, every
 dimension to scale, every extraordinary claim checked against a textbook
 formula, and a dedicated honesty layer that refuses over-unity.
 
+For complete construction instructions covering all 14 phases and 207 BOM
+assemblies, see `CONSTRUCTION_GUIDE.md`.
+
 ---
 
 ## Authorship
 
 This digital twin was developed as a physics-based engineering model of the
 tunnel energy harvester concept described in `informational.md`. The model
-is a standalone Python program with no external dependencies. It is
-intended for research and educational purposes — it is a conceptual design
-study, not a construction blueprint.
+is a standalone Python program with no external dependencies for the physics
+core. The interactive visualization GUI optionally uses tkinter and
+matplotlib. It is intended for research and educational purposes — it is a
+conceptual design study, not a construction blueprint.
 
 The physics is real. The engineering is conceptual. The numbers are
 verified from first principles. The honesty layer ensures the model never
-claims more than thermodynamics allows.
+claims more than thermodynamics allows. The visualization system provides
+the engineering detail needed to understand every component of the design.
 
 **Do not build a tunnel over lava without consulting actual geologists,
 structural engineers, and thermodynamicists.**
